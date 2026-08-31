@@ -7,9 +7,17 @@
    TRANSACTION DATA
 ========================================= */
 
-let transactions = [];
+let transactions =
+    JSON.parse(
+        localStorage.getItem("transactions")
+    ) || [];
 
 let currentType = "expense";
+
+let monthlyBudget =
+    Number(
+        localStorage.getItem("monthlyBudget")
+    ) || 20000;
 
 
 /* =========================================
@@ -46,6 +54,21 @@ const expenseElement =
 const clearAllButton =
     document.getElementById("clearAll");
 
+const themeToggle =
+    document.getElementById("themeToggle");
+
+const budgetAlert =
+    document.getElementById("budgetAlert");
+
+const monthlyIncomeElement =
+    document.getElementById("monthlyIncome");
+
+const monthlyExpenseElement =
+    document.getElementById("monthlyExpense");
+
+const monthlySavingsElement =
+    document.getElementById("monthlySavings");
+
 
 /* =========================================
    SET TODAY'S DATE
@@ -71,11 +94,6 @@ typeButtons.forEach(function(button) {
         "click",
         function() {
 
-            /*
-                Remove active class
-                from both buttons
-            */
-
             typeButtons.forEach(
                 function(btn) {
 
@@ -86,22 +104,12 @@ typeButtons.forEach(function(button) {
                 }
             );
 
-
-            /*
-                Make clicked button active
-            */
-
-            button.classList.add("active");
-
-
-            /*
-                Store selected type
-            */
+            button.classList.add(
+                "active"
+            );
 
             currentType =
-                button.textContent
-                    .trim()
-                    .toLowerCase();
+                button.dataset.type;
 
         }
     );
@@ -117,24 +125,12 @@ form.addEventListener(
     "submit",
     function(event) {
 
-        /*
-            Prevent page refresh
-        */
-
         event.preventDefault();
 
-
-        /*
-            Get amount
-        */
 
         const amount =
             Number(amountInput.value);
 
-
-        /*
-            Validate amount
-        */
 
         if (amount <= 0) {
 
@@ -147,9 +143,20 @@ form.addEventListener(
         }
 
 
-        /*
-            Create transaction object
-        */
+        const description =
+            descriptionInput.value.trim();
+
+
+        if (description === "") {
+
+            alert(
+                "Please enter a description."
+            );
+
+            return;
+
+        }
+
 
         const transaction = {
 
@@ -166,51 +173,31 @@ form.addEventListener(
                 dateInput.value,
 
             description:
-                descriptionInput.value.trim()
+                description
 
         };
 
-
-        /*
-            Add transaction
-            to array
-        */
 
         transactions.push(
             transaction
         );
 
 
-        /*
-            Update screen
-        */
+        saveTransactions();
 
         renderTransactions();
 
         updateDashboard();
 
 
-        /*
-            Clear form
-        */
-
         form.reset();
 
-
-        /*
-            Set date again
-        */
 
         dateInput.value =
             new Date()
                 .toISOString()
                 .split("T")[0];
 
-
-        /*
-            Reset transaction
-            type to Expense
-        */
 
         currentType =
             "expense";
@@ -229,7 +216,7 @@ form.addEventListener(
 
         document
             .querySelector(
-                ".type-btn"
+                '.type-btn[data-type="expense"]'
             )
             .classList.add(
                 "active"
@@ -240,23 +227,33 @@ form.addEventListener(
 
 
 /* =========================================
+   SAVE TRANSACTIONS
+========================================= */
+
+function saveTransactions() {
+
+    localStorage.setItem(
+        "transactions",
+        JSON.stringify(
+            transactions
+        )
+    );
+
+}
+
+
+/* =========================================
    DISPLAY TRANSACTIONS
 ========================================= */
 
-function renderTransactions() {
-
-    /*
-        Clear current list
-    */
+function renderTransactions(
+    list = transactions
+) {
 
     transactionList.innerHTML = "";
 
 
-    /*
-        If no transactions
-    */
-
-    if (transactions.length === 0) {
+    if (list.length === 0) {
 
         transactionList.innerHTML = `
 
@@ -284,13 +281,8 @@ function renderTransactions() {
     }
 
 
-    /*
-        Display each transaction
-    */
-
-    transactions.forEach(
+    list.forEach(
         function(transaction) {
-
 
             const item =
                 document.createElement(
@@ -302,20 +294,12 @@ function renderTransactions() {
                 "transaction";
 
 
-            /*
-                Determine + or -
-            */
-
             const sign =
                 transaction.type ===
                 "income"
                     ? "+"
                     : "-";
 
-
-            /*
-                Determine color
-            */
 
             const amountClass =
                 transaction.type ===
@@ -324,25 +308,27 @@ function renderTransactions() {
                     : "expense";
 
 
-            /*
-                Create transaction HTML
-            */
-
             item.innerHTML = `
 
                 <div>
 
                     <div class="transaction-title">
 
-                        ${transaction.description}
+                        ${escapeHTML(
+                            transaction.description
+                        )}
 
                     </div>
 
 
                     <div class="transaction-meta">
 
-                        ${transaction.category}
+                        ${escapeHTML(
+                            transaction.category
+                        )}
+
                         •
+
                         ${transaction.date}
 
                     </div>
@@ -359,8 +345,9 @@ function renderTransactions() {
                         "
                     >
 
-                        ${sign}₹${transaction.amount
-                            .toLocaleString("en-IN")}
+                        ${sign}${formatCurrency(
+                            transaction.amount
+                        )}
 
                     </div>
 
@@ -387,10 +374,6 @@ function renderTransactions() {
             `;
 
 
-            /*
-                Add to page
-            */
-
             transactionList.appendChild(
                 item
             );
@@ -407,10 +390,6 @@ function renderTransactions() {
 
 function deleteTransaction(id) {
 
-    /*
-        Ask for confirmation
-    */
-
     const confirmed =
         confirm(
             "Delete this transaction?"
@@ -424,10 +403,6 @@ function deleteTransaction(id) {
     }
 
 
-    /*
-        Remove transaction
-    */
-
     transactions =
         transactions.filter(
             function(transaction) {
@@ -438,9 +413,7 @@ function deleteTransaction(id) {
         );
 
 
-    /*
-        Update screen
-    */
+    saveTransactions();
 
     renderTransactions();
 
@@ -460,10 +433,6 @@ function updateDashboard() {
     let totalExpense = 0;
 
 
-    /*
-        Calculate totals
-    */
-
     transactions.forEach(
         function(transaction) {
 
@@ -473,12 +442,16 @@ function updateDashboard() {
             ) {
 
                 totalIncome +=
-                    transaction.amount;
+                    Number(
+                        transaction.amount
+                    );
 
             } else {
 
                 totalExpense +=
-                    transaction.amount;
+                    Number(
+                        transaction.amount
+                    );
 
             }
 
@@ -486,18 +459,10 @@ function updateDashboard() {
     );
 
 
-    /*
-        Calculate balance
-    */
-
     const balance =
         totalIncome -
         totalExpense;
 
-
-    /*
-        Display values
-    */
 
     incomeElement.textContent =
         formatCurrency(
@@ -516,6 +481,211 @@ function updateDashboard() {
             balance
         );
 
+
+    updateMonthlyOverview(
+        totalIncome,
+        totalExpense
+    );
+
+
+    updateBudget(
+        totalExpense
+    );
+
+}
+
+
+/* =========================================
+   MONTHLY OVERVIEW
+========================================= */
+
+function updateMonthlyOverview(
+    totalIncome,
+    totalExpense
+) {
+
+    if (monthlyIncomeElement) {
+
+        monthlyIncomeElement.textContent =
+            formatCurrency(
+                totalIncome
+            );
+
+    }
+
+
+    if (monthlyExpenseElement) {
+
+        monthlyExpenseElement.textContent =
+            formatCurrency(
+                totalExpense
+            );
+
+    }
+
+
+    const savings =
+        totalIncome -
+        totalExpense;
+
+
+    if (monthlySavingsElement) {
+
+        monthlySavingsElement.textContent =
+            formatCurrency(
+                savings
+            );
+
+    }
+
+}
+
+
+/* =========================================
+   BUDGET
+========================================= */
+
+function updateBudget(
+    totalExpense
+) {
+
+    const percentage =
+        monthlyBudget > 0
+            ? (
+                totalExpense /
+                monthlyBudget
+            ) * 100
+            : 0;
+
+
+    const progressLabel =
+        document.querySelector(
+            ".progress-label span:last-child"
+        );
+
+
+    if (progressLabel) {
+
+        progressLabel.textContent =
+            Math.round(
+                percentage
+            ) + "%";
+
+    }
+
+
+    const progressFill =
+        document.querySelector(
+            ".progress-fill"
+        );
+
+
+    if (progressFill) {
+
+        progressFill.style.width =
+            Math.min(
+                percentage,
+                100
+            ) + "%";
+
+    }
+
+
+    if (!budgetAlert) {
+
+        return;
+
+    }
+
+
+    if (
+        totalExpense >
+        monthlyBudget
+    ) {
+
+        budgetAlert.classList.remove(
+            "hidden"
+        );
+
+        budgetAlert.textContent =
+            "⚠️ You have exceeded your monthly budget!";
+
+    } else {
+
+        budgetAlert.classList.add(
+            "hidden"
+        );
+
+    }
+
+}
+
+
+/* =========================================
+   SET MONTHLY BUDGET
+========================================= */
+
+const budgetButton =
+    document.querySelector(
+        ".secondary-btn"
+    );
+
+
+if (budgetButton) {
+
+    budgetButton.addEventListener(
+        "click",
+        function() {
+
+            const newBudget =
+                prompt(
+                    "Enter your monthly budget:",
+                    monthlyBudget
+                );
+
+
+            if (
+                newBudget === null
+            ) {
+
+                return;
+
+            }
+
+
+            const budget =
+                Number(newBudget);
+
+
+            if (
+                isNaN(budget) ||
+                budget <= 0
+            ) {
+
+                alert(
+                    "Please enter a valid budget."
+                );
+
+                return;
+
+            }
+
+
+            monthlyBudget =
+                budget;
+
+
+            localStorage.setItem(
+                "monthlyBudget",
+                monthlyBudget
+            );
+
+
+            updateDashboard();
+
+        }
+    );
+
 }
 
 
@@ -527,23 +697,18 @@ clearAllButton.addEventListener(
     "click",
     function() {
 
-        /*
-            Don't do anything
-            if list is empty
-        */
-
         if (
             transactions.length === 0
         ) {
+
+            alert(
+                "There are no transactions to clear."
+            );
 
             return;
 
         }
 
-
-        /*
-            Confirmation
-        */
 
         const confirmed =
             confirm(
@@ -558,16 +723,10 @@ clearAllButton.addEventListener(
         }
 
 
-        /*
-            Empty array
-        */
-
         transactions = [];
 
 
-        /*
-            Update screen
-        */
+        saveTransactions();
 
         renderTransactions();
 
@@ -578,14 +737,312 @@ clearAllButton.addEventListener(
 
 
 /* =========================================
-   FORMAT CURRENCY
+   SEARCH
 ========================================= */
 
-function formatCurrency(amount) {
+const searchInput =
+    document.querySelector(
+        ".search-box input"
+    );
 
-    return (
-        "₹" +
-        amount.toLocaleString("en-IN")
+
+if (searchInput) {
+
+    searchInput.addEventListener(
+        "input",
+        applyFilters
     );
 
 }
+
+
+/* =========================================
+   FILTERS
+========================================= */
+
+const filterSelects =
+    document.querySelectorAll(
+        ".filters select"
+    );
+
+
+const typeFilter =
+    filterSelects[0];
+
+const categoryFilter =
+    filterSelects[1];
+
+
+if (typeFilter) {
+
+    typeFilter.addEventListener(
+        "change",
+        applyFilters
+    );
+
+}
+
+
+if (categoryFilter) {
+
+    categoryFilter.addEventListener(
+        "change",
+        applyFilters
+    );
+
+}
+
+
+/* =========================================
+   SEARCH + FILTER
+========================================= */
+
+function applyFilters() {
+
+    const searchText =
+        searchInput
+            ? searchInput.value
+                .toLowerCase()
+                .trim()
+            : "";
+
+
+    const selectedType =
+        typeFilter
+            ? typeFilter.value
+            : "All Types";
+
+
+    const selectedCategory =
+        categoryFilter
+            ? categoryFilter.value
+            : "All Categories";
+
+
+    const filteredTransactions =
+        transactions.filter(
+            function(transaction) {
+
+
+                const matchesSearch =
+
+                    transaction.description
+                        .toLowerCase()
+                        .includes(searchText)
+
+                    ||
+
+                    transaction.category
+                        .toLowerCase()
+                        .includes(searchText);
+
+
+                const matchesType =
+
+                    selectedType ===
+                    "All Types"
+
+                    ||
+
+                    (
+                        selectedType ===
+                        "Income"
+
+                        &&
+                        transaction.type ===
+                        "income"
+                    )
+
+                    ||
+
+                    (
+                        selectedType ===
+                        "Expenses"
+
+                        &&
+                        transaction.type ===
+                        "expense"
+                    );
+
+
+                const matchesCategory =
+
+                    selectedCategory ===
+                    "All Categories"
+
+                    ||
+
+                    transaction.category ===
+                    selectedCategory;
+
+
+                return (
+                    matchesSearch &&
+                    matchesType &&
+                    matchesCategory
+                );
+
+            }
+        );
+
+
+    renderTransactions(
+        filteredTransactions
+    );
+
+}
+
+
+/* =========================================
+   DARK MODE
+========================================= */
+
+if (themeToggle) {
+
+    themeToggle.addEventListener(
+        "click",
+        function() {
+
+            document.body.classList.toggle(
+                "dark-mode"
+            );
+
+
+            const darkMode =
+                document.body.classList.contains(
+                    "dark-mode"
+                );
+
+
+            localStorage.setItem(
+                "darkMode",
+                darkMode
+            );
+
+
+            themeToggle.textContent =
+                darkMode
+                    ? "☀️"
+                    : "🌙";
+
+        }
+    );
+
+}
+
+
+/* =========================================
+   LOAD DARK MODE
+========================================= */
+
+const savedDarkMode =
+    localStorage.getItem(
+        "darkMode"
+    );
+
+
+if (
+    savedDarkMode === "true"
+) {
+
+    document.body.classList.add(
+        "dark-mode"
+    );
+
+
+    if (themeToggle) {
+
+        themeToggle.textContent =
+            "☀️";
+
+    }
+
+}
+
+
+/* =========================================
+   CATEGORY ICON
+========================================= */
+
+function getCategoryIcon(
+    category
+) {
+
+    const icons = {
+
+        Food: "🍔",
+
+        Travel: "🚗",
+
+        Shopping: "🛍️",
+
+        Education: "📚",
+
+        Bills: "💡",
+
+        Entertainment: "🎬",
+
+        Health: "❤️",
+
+        Other: "📦"
+
+    };
+
+
+    return (
+        icons[category] ||
+        "📦"
+    );
+
+}
+
+
+/* =========================================
+   FORMAT CURRENCY
+========================================= */
+
+function formatCurrency(
+    amount
+) {
+
+    return (
+        "₹" +
+        Number(amount)
+            .toLocaleString(
+                "en-IN"
+            )
+    );
+
+}
+
+
+/* =========================================
+   ESCAPE HTML
+========================================= */
+
+function escapeHTML(
+    text
+) {
+
+    const div =
+        document.createElement(
+            "div"
+        );
+
+
+    div.textContent =
+        text;
+
+
+    return div.innerHTML;
+
+}
+
+
+/* =========================================
+   INITIAL LOAD
+========================================= */
+
+renderTransactions();
+
+updateDashboard();
